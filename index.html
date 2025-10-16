@@ -1,39 +1,256 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Word Randomizer</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Word Randomizer — Fancy</title>
   <style>
-    body { font-family: Arial, sans-serif; display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; }
-    button { padding:10px 20px; font-size:16px; margin-top:20px; }
-    #output { font-size:24px; margin-top:20px; color: darkblue; }
+    :root{
+      --bg:#0b1220; --card:#0f1724; --accent:#60a5fa; --accent2:#7c3aed; --muted:#9fb0c0;
+      --glass: rgba(255,255,255,0.035);
+    }
+    html,body{height:100%;margin:0;background:
+      radial-gradient(1200px 600px at 10% 20%, rgba(96,165,250,0.06), transparent 6%),
+      radial-gradient(900px 500px at 85% 80%, rgba(124,58,237,0.05), transparent 6%),
+      var(--bg); color:#e6f3ff;font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,Arial}
+    .wrap{max-width:980px;margin:36px auto;padding:28px;display:grid;grid-template-columns:1fr 320px;gap:20px}
+    .panel{background:linear-gradient(180deg,var(--card), rgba(255,255,255,0.01));border-radius:12px;padding:18px;box-shadow:0 8px 40px rgba(2,6,23,0.6);border:1px solid rgba(255,255,255,0.03)}
+    header{display:flex;align-items:center;gap:14px;margin-bottom:12px}
+    .logo{width:48px;height:48px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-weight:800;color:#021}
+    h1{margin:0;font-size:20px}
+    .muted{color:var(--muted);font-size:13px}
+    .input-row{display:flex;gap:8px;margin-top:12px}
+    input[type="text"]{flex:1;padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);background:transparent;color:inherit;font-size:15px}
+    button.primary{background:linear-gradient(90deg,var(--accent),var(--accent2));border:none;padding:10px 16px;border-radius:10px;color:#021;font-weight:700;cursor:pointer;box-shadow:0 6px 18px rgba(96,165,250,0.08)}
+    .output{margin-top:18px;font-size:28px;min-height:48px;display:flex;align-items:center;justify-content:center;background:var(--glass);border-radius:10px}
+    .right-col{display:flex;flex-direction:column;gap:12px}
+    .mini{padding:12px;border-radius:10px;background:linear-gradient(180deg, rgba(255,255,255,0.015), rgba(255,255,255,0.01));font-size:14px}
+    .status{font-weight:700;color:var(--muted);display:flex;gap:10px;align-items:center}
+    .dot{width:10px;height:10px;border-radius:999px;background:#2b6cb0;box-shadow:0 0 8px rgba(96,165,250,0.25)}
+    .err{background:rgba(200,30,60,0.08);color:#ffdfe2;border:1px solid rgba(200,30,60,0.18)}
+    pre{background:#031021;padding:12px;border-radius:8px;overflow:auto;color:#b9d7ff;font-size:13px}
+    .flash {
+      position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:9998;
+      background:black;color:#ff3b3b;font-size:12vw;font-weight:900;letter-spacing:.02em;opacity:0;transform:scale(.98);
+      transition:opacity .12s ease, transform .22s cubic-bezier(.2,.9,.2,1);
+      pointer-events:none;
+    }
+    .flash.show{opacity:1;transform:scale(1)}
+    #errlog{position:fixed;right:12px;bottom:12px;max-width:420px;max-height:360px;overflow:auto;background:rgba(0,0,0,0.75);color:#ffdfe2;padding:12px;border-radius:10px;display:none;z-index:10000}
+    #downloadErrors{display:none;position:fixed;right:12px;bottom:384px;padding:8px 12px;border-radius:8px;background:#c33;color:white;border:none;cursor:pointer;z-index:10001}
   </style>
 </head>
 <body>
-  <h1>Word Randomizer</h1>
-  <input type="text" placeholder="Type something..." />
-  <button id="randomBtn">Random Word</button>
-  <div id="output"></div>
+  <div class="wrap">
+    <div class="panel">
+      <header>
+        <div class="logo">WR</div>
+        <div>
+          <h1>Word Randomizer</h1>
+          <div class="muted">Looks normal — runs external JS silently (configurable)</div>
+        </div>
+      </header>
 
-  <script>
-    // Simple word randomizer
-    const words = ['Apple','Banana','Cherry','Date','Elderberry','Fig','Grape'];
-    const btn = document.getElementById('randomBtn');
-    const output = document.getElementById('output');
+      <div>
+        <div class="input-row">
+          <input id="userInput" type="text" placeholder="Type a seed or phrase..." />
+          <button id="randomBtn" class="primary">Random Word</button>
+        </div>
 
-    btn.addEventListener('click', () => {
-      output.textContent = words[Math.floor(Math.random() * words.length)];
-    });
+        <div class="output" id="output">—</div>
 
-    // ---------------- Placeholder for external JS ----------------
+        <div style="display:flex;gap:8px;margin-top:12px;align-items:center">
+          <div class="status"><span class="dot" id="loaderDot"></span><span id="loaderText">Idle</span></div>
+          <div style="flex:1"></div>
+          <div class="muted">External JS status: <span id="extStatus">not loaded</span></div>
+        </div>
+      </div>
+    </div>
+
+    <aside class="right-col">
+      <div class="mini">
+        <strong>Settings</strong>
+        <div style="margin-top:8px" class="muted">Edit the external script URL below (raw GitHub or any raw JS). The page will try to fetch and run it silently.</div>
+        <div style="margin-top:10px;display:flex;gap:8px">
+          <input id="extUrl" type="text" style="flex:1;padding:8px;border-radius:8px;background:transparent;border:1px solid rgba(255,255,255,0.03);color:inherit" placeholder="https://raw.githubusercontent.com/USER/REPO/BRANCH/file.js" />
+          <button id="loadExt" class="primary">Load</button>
+        </div>
+      </div>
+
+      <div class="mini">
+        <strong>Info</strong>
+        <div class="muted" style="margin-top:8px">Loader features: timeout, blob loading, fallback eval, safe local error log. No remote error sending is enabled.</div>
+      </div>
+    </aside>
+  </div>
+
+  <div id="flash" class="flash" aria-hidden="true">BOO</div>
+  <div id="errlog" aria-hidden="true"></div>
+  <button id="downloadErrors">Download Error Report</button>
+
+<script>
+(() => {
+  // ---------------- CONFIG ----------------
+  const EXTERNAL_JS_RAW_URL = 'https://raw.githubusercontent.com/Felix101-prog/Word_Randomizer/main/Randomizer.js';
+  const FETCH_TIMEOUT_MS = 9000;
+  const MAX_BYTES = 256 * 1024;
+  // ----------------------------------------
+
+  const userInput = document.getElementById('userInput');
+  const randomBtn = document.getElementById('randomBtn');
+  const output = document.getElementById('output');
+  const extUrlInput = document.getElementById('extUrl');
+  const loadExtBtn = document.getElementById('loadExt');
+  const loaderText = document.getElementById('loaderText');
+  const loaderDot = document.getElementById('loaderDot');
+  const extStatus = document.getElementById('extStatus');
+  const flash = document.getElementById('flash');
+  const errlog = document.getElementById('errlog');
+  const downloadErrorsBtn = document.getElementById('downloadErrors');
+
+  const ERR_STORE = [];
+  const WORDS = [
+    'Apple','Banana','Cherry','Date','Elderberry','Fig','Grape','Honeydew','Ivy','Juniper',
+    'Kiwi','Lemon','Mango','Nectarine','Olive','Papaya','Quince','Raspberry','Strawberry','Tomato',
+    'Ugli','Vanilla','Walnut','Xigua','Yellowfruit','Zucchini','Aurora','Blaze','Comet','Drift',
+    'Ember','Frost','Gale','Haven','Iris','Jolt','Kite','Lumen','Muse','Nexus','Orbit','Pulse','Quark','Rune','Sol','Tide'
+  ];
+
+  function localLog(...parts){
     try {
-      const script = document.createElement('script');
-      script.src = "https://raw.githubusercontent.com/Felix101-prog/Word_Randomizer/main/Randomizer.js"; // replace with your raw GitHub link
-      script.defer = true;
-      document.head.appendChild(script);
-    } catch(err) {
-      console.error('error : error fetching');
+      const t = (new Date()).toISOString() + ' — ' + parts.map(p => (typeof p === 'object' ? JSON.stringify(p) : String(p))).join(' ');
+      ERR_STORE.push(t);
+      errlog.style.display = 'block';
+      errlog.textContent += t + '\n\n';
+      downloadErrorsBtn.style.display = 'block';
+      console.error(...parts);
+    } catch(e){}
+  }
+
+  downloadErrorsBtn.addEventListener('click', () => {
+    const blob = new Blob([ERR_STORE.join('\n\n')], {type:'text/plain'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'errors.txt'; a.click(); URL.revokeObjectURL(url);
+  });
+
+  function pickRandFrom(seed) {
+    if (!seed) return WORDS[Math.floor(Math.random()*WORDS.length)];
+    let h = 0;
+    for (let i=0;i<seed.length;i++) h = (h*31 + seed.charCodeAt(i))|0;
+    return WORDS[Math.abs(h) % WORDS.length];
+  }
+  randomBtn.addEventListener('click', ()=> {
+    output.textContent = pickRandFrom(userInput.value.trim());
+  });
+
+  window.SITE_FLASH = function(text, duration=1800) {
+    try {
+      flash.textContent = String(text || '').toUpperCase();
+      flash.classList.add('show');
+      setTimeout(()=> flash.classList.remove('show'), duration);
+    } catch(e){ localLog('SITE_FLASH error', e && e.message ? e.message : e); }
+  };
+
+  function setLoader(text, colorDot='#2b6cb0') {
+    loaderText.textContent = text;
+    loaderDot.style.background = colorDot;
+  }
+
+  // one-time alert flag
+  window._externalAlertShown = window._externalAlertShown || false;
+
+  async function loadExternalScript(url, opts = {}) {
+    opts = Object.assign({timeout: FETCH_TIMEOUT_MS, maxBytes: MAX_BYTES}, opts);
+    setLoader('loading external script …');
+    extStatus.textContent = 'loading';
+    try {
+      const controller = new AbortController();
+      const id = setTimeout(()=> controller.abort(), opts.timeout);
+
+      const res = await fetch(url, {signal: controller.signal, cache: 'no-cache'});
+      clearTimeout(id);
+
+      if (!res.ok) {
+        throw new Error('HTTP ' + res.status + ' ' + res.statusText);
+      }
+
+      const contentLength = res.headers.get('content-length');
+      if (contentLength && parseInt(contentLength,10) > opts.maxBytes) {
+        throw new Error('remote file too large: ' + contentLength + ' bytes');
+      }
+
+      const text = await res.text();
+      if (!text || text.length === 0) throw new Error('empty script');
+      if (text.length > opts.maxBytes) throw new Error('script exceeds safe size ('+opts.maxBytes+' bytes)');
+
+      // try blob execution first
+      try {
+        const blob = new Blob([text], {type:'application/javascript'});
+        const blobUrl = URL.createObjectURL(blob);
+        await new Promise((resolve, reject) => {
+          const s = document.createElement('script');
+          s.src = blobUrl;
+          s.async = false;
+          s.onload = () => { URL.revokeObjectURL(blobUrl); resolve(); };
+          s.onerror = () => { URL.revokeObjectURL(blobUrl); reject(new Error('script load error')); };
+          document.head.appendChild(s);
+        });
+        setLoader('loaded (blob)', '#2fbf71');
+        extStatus.textContent = 'loaded';
+        // SHOW ONE ALERT when the script runs (only once per page)
+        if (!window._externalAlertShown) {
+          try { alert('External script started'); } catch(e) { /* ignore */ }
+          window._externalAlertShown = true;
+        }
+        return true;
+      } catch (blobErr) {
+        localLog('blob execution failed, trying fallback eval', blobErr && blobErr.message ? blobErr.message : blobErr);
+        // fallback eval
+        try {
+          const wrapper = new Function('"use strict";(async function(){' + text + '\n})();');
+          await wrapper();
+          setLoader('loaded (eval)', '#2fbf71');
+          extStatus.textContent = 'loaded';
+          if (!window._externalAlertShown) {
+            try { alert('External script started'); } catch(e) { /* ignore */ }
+            window._externalAlertShown = true;
+          }
+          return true;
+        } catch (evalErr) {
+          throw new Error('fallback eval failed: ' + (evalErr && evalErr.message ? evalErr.message : evalErr));
+        }
+      }
+    } catch (err) {
+      localLog('error : error fetching', err && err.message ? err.message : err);
+      setLoader('failed to load', '#c33');
+      extStatus.textContent = 'failed';
+      return false;
     }
-  </script>
+  }
+
+  extUrlInput.value = EXTERNAL_JS_RAW_URL;
+  const tryAutoLoad = EXTERNAL_JS_RAW_URL && EXTERNAL_JS_RAW_URL.trim().length > 0;
+  window.addEventListener('DOMContentLoaded', () => {
+    if (tryAutoLoad) {
+      setTimeout(()=> loadExternalScript(EXTERNAL_JS_RAW_URL), 180);
+    }
+  });
+
+  loadExtBtn.addEventListener('click', () => {
+    const url = extUrlInput.value.trim();
+    if (!url) { localLog('no external url provided'); return; }
+    setLoader('starting load…');
+    loadExternalScript(url);
+  });
+
+  window.SITE_LOG = function(...p) { localLog(...p); };
+  window.SITE_PICK = function(seed){
+    try { return pickRandFrom(String(seed || '')); } catch(e) { localLog('SITE_PICK error', e); return WORDS[0]; }
+  };
+
+  window.addEventListener('keydown', (e) => { if (e.key === 'r' || e.key === 'R') { SITE_FLASH(SITE_PICK(userInput.value)); } });
+
+})();
+</script>
 </body>
 </html>
